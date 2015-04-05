@@ -1,0 +1,32 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
+
+
+<html>
+	<head>
+		<link rel="stylesheet" type="text/css" href="style.css">
+		<script type="text/javascript" src="lib/three.js"></script>
+		<script type="text/javascript" src="lib/jquery-2.1.3.js"></script>
+		<script type="text/javascript" src="lib/TrackballControls.js"></script>
+		<script type="text/javascript" src="lib/OBJLoader.js"></script>
+		<script type="text/javascript" src="init.js"></script>
+		<script type="text/javascript" src="lib/BufferLoader.js"></script>
+		<script type="text/javascript" src="player.js"></script>
+		
+		<title>Stereo Music Visualization using Manifold Harmonics</title>
+	</head>
+
+	<body onload=init()>
+		<div id="header"></div>
+		<div id="controls">
+			<div id="audio">
+				<input id="play" type="button" name="play" value="play" disabled="true" onclick="play()" />
+				<input id="stop" type="button" name="stop" value="stop"
+				disabled="true" onclick="stop()" />
+				<input type="range" min="0" max="10" value="5" step="1" onchange="gain=this.value;" />
+			</div>
+
+
+		</div>
+		<div id="canvas"></div>
+	</body>
+</html>
