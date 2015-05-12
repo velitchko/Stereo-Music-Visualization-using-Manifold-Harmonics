@@ -16,7 +16,8 @@
 
 #controls
 {
-
+	vertical-align:middle;
+	line-height: 50%;
 }
 
 #audio
@@ -26,10 +27,26 @@
 
 #play
 {
+	width: 2em;
+	height: 2em;
+	font-size:medium;
 	
+	position: relative;
+	top: 20%;
+    -webkit-transform: translateY(-20%);
+    -ms-transform: translateY(-20%);
+    transform: translateY(-20%);
 }
 
 #stop
 {
-
+	width: 2em;
+	height: 2em;
+	font-size:medium;
+	
+	position: relative;
+	top: 20%;
+    -webkit-transform: translateY(-20%);
+    -ms-transform: translateY(-20%);
+    transform: translateY(-20%);
 }

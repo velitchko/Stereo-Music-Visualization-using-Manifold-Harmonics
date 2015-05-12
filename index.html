@@ -15,18 +15,25 @@
 		<title>Stereo Music Visualization using Manifold Harmonics</title>
 	</head>
 
-	<body onload=init()>
+	<body onload=init() align='center'>
+	
 		<div id="header"></div>
+		
+		<div id='title'>
+			<h1>Stereo Music Visualization using Manifold Harmonics</h1>
+			<br>
+		</div>
+		
 		<div id="controls">
 			<div id="audio">
-				<input id="play" type="button" name="play" value="play" disabled="true" onclick="play()" />
-				<input id="stop" type="button" name="stop" value="stop"
-				disabled="true" onclick="stop()" />
+				<input id="play" type="button" name="play" value="&#9654;" disabled="true" onclick="play()" />
 				<input type="range" min="0" max="10" value="5" step="1" onchange="gain=this.value;" />
+				<input id="stop" type="button" name="stop" value="&#9632" disabled="true" onclick="stop()" />
 			</div>
-
-
+			<br>
 		</div>
+		
 		<div id="canvas"></div>
+		
 	</body>
 </html>

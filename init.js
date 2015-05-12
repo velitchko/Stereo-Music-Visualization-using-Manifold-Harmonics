@@ -1,5 +1,5 @@
-var canvas_w = 1280;
-var canvas_h = 720;
+var canvas_w = 1024;
+var canvas_h = 600;
 var canvas;
 var renderer;
 var camera;
@@ -24,7 +24,7 @@ function init()
 
 
 	scene = new THREE.Scene();
-	camera = new THREE.PerspectiveCamera(40, ratio, 0.1, 1000);
+	camera = new THREE.PerspectiveCamera(20, ratio, 0.1, 1000);
 	setCamera(10,10,100);
 	setLight();
 	scene.add(camera);
