@@ -16,7 +16,7 @@ function initAudio()
 
 		bufferLoader = new BufferLoader(context,
 		[
-		'music/queen.mp3'
+		'music/Signal-to-Noise_-_10_-_Universal.mp3'
 		],
 		finishedLoading
 		);
