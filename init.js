@@ -12,6 +12,7 @@ var ambient;
 var directionalLight;
 var loader;
 var manager;
+var gain = 5;
 
 function init()
 {
@@ -25,7 +26,7 @@ function init()
 
 	scene = new THREE.Scene();
 	camera = new THREE.PerspectiveCamera(20, ratio, 0.1, 1000);
-	setCamera(10,10,100);
+	setCamera(10,10,10);
 	setLight();
 	scene.add(camera);
 	
@@ -91,9 +92,15 @@ function setControls()
 
 function animate()
 {
-	requestAnimationFrame(animate);
+
 	controls.update();
 	camera.lookAt(scene.position);
+	if(playing)
+	{
+		var coeffs = getCoefficients(gain,0.1,2.0,50);
+		
+	}
 	renderer.render(scene,camera);
+	requestAnimationFrame(animate);
 
 }
