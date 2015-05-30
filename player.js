@@ -8,6 +8,8 @@ var freq = 512;
 var freq_data;
 var playing;
 
+
+
 function initAudio()
 {
 	try

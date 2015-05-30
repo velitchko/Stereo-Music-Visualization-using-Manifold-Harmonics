@@ -1,13 +1,12 @@
-
-
 #header
 {
 
 }
 
-.body
+body
 {
 	width: 100%;
+	background-image: url("bg.jpg");
 }
 
 #title
