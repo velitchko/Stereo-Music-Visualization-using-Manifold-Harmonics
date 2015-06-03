@@ -22,6 +22,9 @@ var posArray;
 var model_mesh;
 var vertex_shader;
 var fragment_shader;
+var mhb_file_data_txt;
+var mhb_file_data_arr;
+var mhb_data_arr;
 
 function init()
 {
@@ -183,7 +186,7 @@ function setLight()
 function setLoader()
 {
 	
-	loader.load('models/cone.obj', function ( object ) 
+	loader.load('models/eight.obj', function ( object ) 
 	{
 		//var model = new THREE.Mesh(object);
 		if(object instanceof THREE.Object3D)
@@ -211,9 +214,14 @@ function setLoader()
 		}
   		//object.scale.set(0.2,0.2,);
   		model = object;
-  		readMHB("models/cone.mhb", function(mhb_)
+  	
+		readMHB("models/eight.mhb.txt", function(mhb_)
 		{
-			mhb(mhb_);
+			parseMHB(mhb_, function(mhb_arr)
+				{
+					mhb_data_arr = mhb_arr;
+				});
+			mhb(mhb_data_arr);
 		});
 		scene.add(model_mesh);
 	}
@@ -254,27 +262,51 @@ function animate()
 
 }
 
-function readMHB(mhb_fp, callback)
+function parseMHB(mhb_txt, callback)
 {
-	 var request = new XMLHttpRequest();
-	 request.open("GET", mhb);
-	 request.responseType = "arraybuffer";
-	 request.onreadystatechange = function ()
-	 {
+	var out_arr = new Array();
+	mhb_txt = mhb_txt.replace(/\r\n/g, "\n");
+	mhb_txt = mhb_txt.replace(/\r/g, "\n");
+	mhb_txt = mhb_txt.trim();
+	mhb_txt = mhb_txt.replace(/\s+/g, '|');
+	//alert(mhb_txt);
+	var rows = mhb_txt.split("\n");
 
-	       
-	            	var buff = request.response;
-	            	if(buff)
-	            	{
-	             		var arr = new Float32Array(buff);
-	            	}
-	                //var allText = request.responseText;
-	                alert(arr);
-	                callback(arr);
-	     
-        	
+	for(var i = 0; i < rows.length; i++)
+	{
+		var columns = rows[i].split("|");
+		for(var j = 0; j < columns.length; j++)
+		{
+			out_arr.push(columns[j]);
+		}
+
+	}
+	var float32arr = new Float32Array(out_arr);
+	console.log("Parsed MHB Array size: " + float32arr.length);
+	callback(float32arr);
+}
+
+function readMHB(mhb, callback)
+{
+ var request = new XMLHttpRequest();
+ request.open("GET", mhb, true);
+ request.onreadystatechange = function ()
+    {
+        if(request.readyState === 4)
+        {
+            if(request.status === 200 || request.status == 0)
+            {
+                var allText = request.responseText;
+                //alert(allText);   
+                callback(allText);
+            }
+        }
+        else
+        {
+         //?
+        }
     }
-    request.send();
+    request.send(null);
 }
 
 function initArray(arr, size, fill)
