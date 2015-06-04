@@ -37,7 +37,7 @@ function init()
 
 	canvas.appendChild(renderer.domElement);
 	gl = renderer.getContext();
-
+	gl.clearColor(0.0, 0.52, 0.63, 1.0);
 	scene = new THREE.Scene();
 	camera = new THREE.PerspectiveCamera(20, ratio, 0.1, 1000);
 	setCamera(10,10,10);
@@ -183,49 +183,47 @@ function setLight()
     scene.add(directionalLight);
 }
 
+var geo;
 function setLoader()
 {
 	
-	loader.load('models/eight.obj', function ( object ) 
+	loader.load('models/ship.obj', function ( object )
 	{
-		//var model = new THREE.Mesh(object);
+		
+		//var material = new THREE.MeshLambertMaterial({ color: 0xa65e00 });
+		model = object;
 		if(object instanceof THREE.Object3D)
 		{
-			object.traverse(function (mesh)
+			object.traverse(function ( mesh )
 			{
 				if(mesh instanceof THREE.Mesh)
 				{
-					//console.log("Instance of mesh");
-					vertexArray = mesh.geometry.getAttribute("position").array;
+					
+					mesh.material = new THREE.MeshLambertMaterial({ color: 0xa65e00 });
+					mesh.geometry.computeVertexNormals();
+					mesh.geometry.computeFaceNormals();	
 					model_mesh = mesh;
-					//console.log("VERT:" + mesh.geometry.vertices);
+					console.log(mesh.geometry);
 				}
 			});
+
 		}
 		object.position.x = 0;
 		object.position.y = 0;
 		object.position.z = 0;
+		object.scale.set(5,5,5);
 
-		var idx = 0;
-		for(var i = 0; i < vertexArray.length; i+=3)
+		//compute pos array;
+
+		readMHB("models/ship.mhb.txt", function ( mhb_ )
 		{
-			posArray.push(idx);
-			idx++;
-		}
-  		//object.scale.set(0.2,0.2,);
-  		model = object;
-  	
-		readMHB("models/eight.mhb.txt", function(mhb_)
-		{
-			parseMHB(mhb_, function(mhb_arr)
-				{
-					mhb_data_arr = mhb_arr;
-				});
-			mhb(mhb_data_arr);
+			parseMHB(mhb_, function ( mhb_arr )
+			{
+				//mhb(mhb_arr);
+			});
 		});
-		scene.add(model_mesh);
-	}
-	);
+		scene.add(object);
+	});
 	
 }
 
