@@ -373,6 +373,7 @@ function readMHB(mhb, callback)
         }
     }
     request.send(null);
+}
 
 function readMHBBIN(mhb, callback)
 {
@@ -385,9 +386,9 @@ function readMHBBIN(mhb, callback)
     	var arr = request.response;
     	if(arr)
     	{
-    		data = new Float32Array(arr);
+    		arr = new Float32Array(arr);
     		
-    		callback(data);
+    		callback(arr);
     	}	
     }
     

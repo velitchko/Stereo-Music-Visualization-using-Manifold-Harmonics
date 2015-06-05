@@ -65,7 +65,7 @@ function getCoefficients(gain, min ,max, l)
 	{
 		analyzer.getByteFrequencyData(freq_data);
 		var ratio = l / freq_data.length;
-		
+		console.log(freq_data);
 		trans_array = freq_data;
 		coeffs = new Float32Array(l);
 		var g;
