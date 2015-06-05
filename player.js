@@ -10,7 +10,7 @@ var playing;
 
 
 
-function initAudio()
+function initAudio(callback)
 {
 	try
 	{
@@ -20,7 +20,7 @@ function initAudio()
 
 		bufferLoader = new BufferLoader(context,
 		[
-		'music/Signal-to-Noise_-_10_-_Universal.mp3'
+		'music/test2.mp3'
 		],
 		finishedLoading
 		);
@@ -44,6 +44,7 @@ function initAudio()
 
 	}
 	console.log("Audio initialized.")
+	callback(true);
 }
 
 function finishedLoading(bufferList)
@@ -54,19 +55,22 @@ function finishedLoading(bufferList)
 	$("#play").attr("disabled", false);
 	console.log("Song: " + bufferLoader.urlList[0] + " loaded.")
 }
+var trans_array;
 
 function getCoefficients(gain, min ,max, l)
 {
-	var ret, i, idx;
-	console.log("Gain:" + gain);
+	var ret, idx;
+	//console.log("Gain:" + gain);
 	if(playing)
 	{
-		analyzer.getByteTimeDomainData(freq_data);
+		analyzer.getByteFrequencyData(freq_data);
 		var ratio = l / freq_data.length;
+		
+		trans_array = freq_data;
 		coeffs = new Float32Array(l);
 		var g;
 
-		for(i = 0; i < freq_data.length; i++)
+		for(var i = 0; i < freq_data.length; i++)
 		{
 			idx = Math.round(i*ratio);
 			g = (gain*i*i) / (freq_data.length*freq_data.length);
@@ -74,19 +78,19 @@ function getCoefficients(gain, min ,max, l)
 		}
 		ret = new Float32Array(coeffs.length);
 
-		for(i = 0; i < coeffs.length; i++)
+		for(var i = 0; i < coeffs.length; i++)
 		{
-			ret[i] = coeffs[i] * (max - min) / (255/ratio) + min;
+			ret[i] = (coeffs[i] * (max - min)) / (255/ratio) + min;
 		}
 
 	}
 	else
 	{
-		 ret = new Float32Array(l);
+		ret = new Float32Array(l);
 		
-		while(idx < l) 
+		for(var i = 0; i < l; i++)
 		{
-			coeffs[i++] = 1;
+			ret[i] = 1.0;
 		}
 	}
 
