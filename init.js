@@ -264,14 +264,14 @@ function setLoader()
 		
 		posArray = new Float32Array(posArray);
 
-		readMHBBIN("models/ship_vectors.mhb", function ( mhb_ )
+		readMHBBIN("models/ship.mhb.txt", function ( mhb_ )
 		{
-			//parseMHB(mhb_, function ( mhb_arr )
-			//{
+			parseMHB(mhb_, function ( mhb_arr )
+			{
 			//	mhb_parse_data = mhb_arr;
-			//	mhb(mhb_arr);
-			//});
-			mhb(mhb_);
+				mhb(mhb_arr);
+			});
+			//mhb(mhb_);
 		});
 		scene.add(object);
 	});
