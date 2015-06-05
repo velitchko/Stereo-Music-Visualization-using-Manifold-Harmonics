@@ -12,6 +12,8 @@ var gl;
 var ratio = (canvas_w / canvas_h);
 var ambient;
 var directionalLight;
+var angle = 1.0;
+
 var loader;
 var manager;
 var gain = 5;
@@ -21,6 +23,8 @@ var vertexArray;
 var posArray;
 var model_mesh;
 
+// SHADER STUFF
+var shader_vars;
 var vertex_shader;
 var fragment_shader;
 
@@ -88,6 +92,8 @@ function init()
 
 function initShaders()
 {
+	// TODO: FIND OUT WHY OBJECT DISAPPEARS
+	// SOMETHING TODO WITH THE POS VECTOR???
 	vertex_shader = 
 	"uniform sampler2D mhb; " +
 	"uniform sampler2D mht; " +
@@ -258,14 +264,14 @@ function setLoader()
 		
 		posArray = new Float32Array(posArray);
 
-		readMHB("models/ship.mhb.txt", function ( mhb_ )
+		readMHBBIN("models/ship_vectors.mhb", function ( mhb_ )
 		{
-			parseMHB(mhb_, function ( mhb_arr )
-			{
+			//parseMHB(mhb_, function ( mhb_arr )
+			//{
 			//	mhb_parse_data = mhb_arr;
-				mhb(mhb_arr);
-			});
-			//mhb(mhb_);
+			//	mhb(mhb_arr);
+			//});
+			mhb(mhb_);
 		});
 		scene.add(object);
 	});
@@ -295,9 +301,19 @@ function animate()
 
 	controls.update();
 	camera.lookAt(scene.position);
+
+
+
 	if(audio_intialized && $("#play").is(":disabled") && $("#stop").is(":enabled"))
 	{
+		var x = Math.sin(angle);
+		var y = Math.cos(angle);
+		var z = Math.cos(angle); 
 		
+		shader_vars.light_dir.value = new THREE.Vector3(x, y, z);
+		angle += 0.05;
+	
+
 		var coeffs = getCoefficients(gain,0.2,1.7,50);
 		var coeff_length = Math.pow(2, Math.ceil( Math.log(Math.ceil(Math.sqrt(harmonic_count))) / Math.log(2)));
 		var size_coeff = coeff_length*coeff_length*3;
@@ -559,7 +575,7 @@ function getNewTexture(buffer, size, type, debug_tex)
 // diffSize / diffTex?
 function setShader(mhb_text, mht_text, imht_text, diff_text, vert_count, harmonic_count, mhb_size, mht_size, diff_size)
 {
-	var shader_vars =
+	shader_vars =
 	{
 		mhb  : {type : "t", value : 0, texture : mhb_text},
 		mht  : {type : "t", value : 1, texture : mht_text},
