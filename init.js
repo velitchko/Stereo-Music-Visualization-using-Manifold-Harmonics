@@ -91,7 +91,7 @@ function init()
 function initShaders()
 {
 	// TODO: FIND OUT WHY OBJECT DISAPPEARS
-	// SOMETHING TODO WITH THE POS VECTOR???
+	// SOMETHING TODO WITH THE DISPLACEMENT VECTOR???
 	vertex_shader = 
 	"uniform sampler2D mhb; \n" +
 	"uniform sampler2D mht; \n" +
@@ -167,8 +167,8 @@ function initShaders()
 		
 	 	"normal_v = normalMatrix * normal; \n"+
 	 
-	 	"eye = vec3(modelViewMatrix * vec4((displacement + diff_vec), 1.0)); \n"+
-	 	"gl_Position = projectionMatrix * vec4(eye, 1.0); \n"+
+	 	"eye = -vec3(modelViewMatrix * vec4((displacement + diff_vec), 1.0)); \n"+
+	 	"gl_Position = projectionMatrix * vec4(-eye, 1.0); \n"+
 	"}";
 
 	fragment_shader = 
@@ -193,8 +193,6 @@ function initShaders()
 					
 		 "gl_FragColor = vec4(color, 1.0);\n" +
  	"}";
-
-
 }
 
 function setLight()
