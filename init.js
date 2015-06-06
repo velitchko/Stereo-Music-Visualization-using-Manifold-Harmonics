@@ -2,24 +2,26 @@
 var canvas_w = 1280;
 var canvas_h = 720;
 
+// WEBGL
 var canvas;
 var renderer;
 var camera;
 var controls;
 var scene;
 var gl;
-
 var ratio = (canvas_w / canvas_h);
+
+// LIGHT
 var ambient;
 var directionalLight;
 var angle = 1.0;
 
+// UTIL
 var loader;
 var manager;
+
+// IMPORTANT VARS
 var gain = 5;
-
-
-var vertexArray;
 var posArray;
 var model_mesh;
 
@@ -42,8 +44,8 @@ var imht_tex;
 var diff_tex;
 var mhb_parse_data;
 
+// 
 var harmonic_count;
-
 var audio_intialized = false;
 
 
@@ -52,10 +54,9 @@ function init()
 	debug = false;
 	harmonic_count = 50;
 	initAudio( function ( initialized )
-		{
-			audio_intialized = initialized;
-
-		});
+	{
+		audio_intialized = initialized;
+	});
 	initShaders();
 	posArray = new Array();
 	//console.log("MHB INFO: " + mhb);
@@ -66,13 +67,11 @@ function init()
 	gl = renderer.getContext();
 	gl.clearColor(0.0, 0.52, 0.63, 1.0);
 	scene = new THREE.Scene();
-	camera = new THREE.PerspectiveCamera(20, ratio, 0.1, 1000);
-	setCamera(10,10,10);
+	camera = new THREE.PerspectiveCamera(20, ratio, 0.1, 10000);
+	setCamera(0,0,1);
 	setLight();
 	scene.add(camera);
-	
-
-	
+		
 	manager = new THREE.LoadingManager();
 	manager.onProgress  = function(item, loaded, total)
 	{
@@ -80,7 +79,6 @@ function init()
 	}
 	loader = new THREE.OBJLoader(manager);
 	setLoader();
-	
 	
 	controls = new THREE.TrackballControls(camera, renderer.domElement);
 	setControls();
@@ -95,112 +93,105 @@ function initShaders()
 	// TODO: FIND OUT WHY OBJECT DISAPPEARS
 	// SOMETHING TODO WITH THE POS VECTOR???
 	vertex_shader = 
-	"uniform sampler2D mhb; " +
-	"uniform sampler2D mht; " +
-	"uniform sampler2D imht; " +
-	"uniform sampler2D diff; " +
-	"uniform int num_vert; " +
-	"uniform int num_harm; " +
-	"uniform int mhb_size; " +
-	"uniform int mht_size; " +
-	"uniform int diff_size; "+
+	"uniform sampler2D mhb; \n" +
+	"uniform sampler2D mht; \n" +
+	"uniform sampler2D imht; \n" +
+	"uniform sampler2D diff; \n" +
+	"uniform int num_vert; \n" +
 
+	"uniform int mhb_size; \n" +
+	"uniform int mht_size; \n" +
+	"uniform int diff_size; \n"+
+
+	"varying vec3 normal_v; \n"+
+	"varying vec3 eye; \n"+
+	"const int num_harmonics = 50;\n" +
 	
-	 "varying vec3 normal_v; "+
-	 "varying vec3 eye; "+
-	
-	
-	 "vec2 texCoord(float tex_size, float vidx) "+
-	 "{ " +
-	 	"float x = floor(vidx / tex_size); " +
-	 	"float y = mod(vidx, tex_size); " +
-	 	"return vec2(y/(tex_size - 1.0), x/(tex_size - 1.0)); " +
-	 "}" +
+	"vec2 texCoord(float tex_size, float vidx) \n"+
+	"{ \n" +
+		"float x = floor(vidx / tex_size); \n" +
+	 	"float y = mod(vidx, tex_size); \n" +
+	 	"return vec2(y/(tex_size - 1.0), x/(tex_size - 1.0)); \n" +
+	"}\n" +
     
-	 "vec2 textCoordRGB(float tex_size, float vidx) "+
-	 "{"+
-	 	"float tex_idx = floor(vidx / 4.0); "+
-	 	"float x = floor(tex_idx / tex_size); "+
-	 	"float y = mod(tex_idx , tex_size); "+
-	 	"return vec2(y/(tex_size - 1.0), x/(tex_size - 1.0)); "+
-	 "}" +
+	"vec2 texCoordRGB(float tex_size, float vidx) \n"+
+	"{\n"+
+	 	"float tex_idx = floor(vidx / 4.0); \n"+
+	 	"float x = floor(tex_idx / tex_size); \n"+
+	 	"float y = mod(tex_idx , tex_size); \n"+
+	 	"return vec2(y/(tex_size - 1.0), x/(tex_size - 1.0)); \n"+
+	"}\n" +
 	
  
-	 "void main() "+
-	 "{ "+
-	 	"vec3 pos = vec3(0.0, 0.0, 0.0); "+
+	"void main() \n"+
+	"{ \n"+
+	 	"vec3 displacement = vec3(0.0, 0.0, 0.0); \n"+
 		
-	 	"float vidx = position.x; "+
+	 	"float vidx = position.x; \n"+
 		
-	 	"for(int i = 0; i < 50; i++) "+
-	 	"{ "+
-	 		"float mhb_idx = float(i) * float(num_vert) + vidx; "+
-	 		"vec2 mhb_coords = textCoordRGB(float(mhb_size), mhb_idx); "+
-	 		"vec4 mhb_texel = texture2D(mhb, mhb_coords).xyzw; "+
+	 	"for(int i = 0; i < num_harmonics; i++) \n"+
+	 	"{ \n"+
+	 		"float mhb_idx = float(i) * float(num_vert) + vidx; \n"+
+	 		"vec2 mhb_coords = texCoordRGB(float(mhb_size), mhb_idx); \n"+
+	 		"vec4 mhb_texel = texture2D(mhb, mhb_coords).xyzw; \n"+
 			
-	 		"vec2 mht_coords = texCoord(float(mht_size), float(i)); "+
-	 		"vec3 coeffs = texture2D(mht, mht_coords).xyz; "+
-	 		"vec3 imht_coord = texture2D(imht, mht_coords).xyz; "+
-
-		 
+	 		"vec2 mht_coords = texCoord(float(mht_size), float(i)); \n"+
+	 		"vec3 coeffs = texture2D(mht, mht_coords).xyz; \n"+
+	 		"vec3 imht_coord = texture2D(imht, mht_coords).xyz; \n"+
 			
-	 		"float mhb_val; "+
-	 		"int mhb_coord = int(mod(mhb_idx, 4.0)); "+
+	 		"float mhb_val; \n"+
+	 		"int mhb_coord = int(mod(mhb_idx, 4.0)); \n"+
 			
-	 		"if(mhb_coord == 0) "+
-	 		"{" +
-	 			"mhb_val = mhb_texel[0]; "+
-	 		"} "+
-	 		"else if(mhb_coord == 1) "+
-	 		"{ "+
-	 			"mhb_val = mhb_texel[1]; "+
-	 		"} "+
-	 		"else if(mhb_coord == 2) "+
-	 		"{ "+
-	 			"mhb_val = mhb_texel[2]; "+
-	 		"} "+
-	 		"else if (mhb_coord == 3) "+
-	 		"{ "+
-	 			"mhb_val = mhb_texel[3]; "+
-	 		"} "+
-	 		"vec3 mhb_vec_val = vec3(mhb_val, mhb_val, mhb_val); "+
-	 		"pos = pos + (coeffs * imht_coord * mhb_vec_val); "+
-	 	"}" +
+	 		"if(mhb_coord == 0) \n"+
+	 		"{\n" +
+	 			"mhb_val = mhb_texel[0]; \n"+
+	 		"} \n"+
+	 		"else if(mhb_coord == 1) \n"+
+	 		"{ \n"+
+	 			"mhb_val = mhb_texel[1]; \n"+
+	 		"} \n"+
+	 		"else if(mhb_coord == 2) \n"+
+	 		"{ \n"+
+	 			"mhb_val = mhb_texel[2]; \n"+
+	 		"} \n"+
+	 		"else if (mhb_coord == 3) \n"+
+	 		"{ \n"+
+	 			"mhb_val = mhb_texel[3]; \n"+
+	 		"} \n"+
+	 		"vec3 mhb_vec_val = vec3(mhb_val, mhb_val, mhb_val); \n"+
+	 		"displacement = displacement + (coeffs * imht_coord * mhb_vec_val) ; \n"+
+	 	"}\n" +
 		
-		"vec2 diff_coords = texCoord(float(diff_size), vidx); "+
-	  	"vec3 diff_vec = texture2D(diff, diff_coords).xyz; "+
+		"vec2 diff_coords = texCoord(float(diff_size), vidx); \n"+
+	  	"vec3 diff_vec = texture2D(diff, diff_coords).xyz; \n"+
 		
-	 	"normal_v = normalMatrix * normal; "+
-	 	
-	 	"eye = -vec3(modelViewMatrix * vec4((position + diff_vec), 1.0)); "+
-	 	"gl_Position = projectionMatrix * vec4(-eye, 1.0); "+
-	 "}";
+	 	"normal_v = normalMatrix * normal; \n"+
+	 
+	 	"eye = vec3(modelViewMatrix * vec4((displacement + diff_vec), 1.0)); \n"+
+	 	"gl_Position = projectionMatrix * vec4(eye, 1.0); \n"+
+	"}";
 
 	fragment_shader = 
-	"uniform vec3 ambient;" +
-	"uniform vec3 light_dir;" +
-	"uniform vec3 color;" +
-	"uniform vec3 mat_color;" +
-	"uniform vec3 spec_color;" +
+	"uniform vec3 ambient; \n" +
+	"uniform vec3 light_dir;\n" +
+	"uniform vec3 color;\n" +
+	"uniform vec3 mat_color;\n" +
+	"uniform vec3 spec_color;\n" +
 
-	"varying vec3 normal_v;" +
-	"varying vec3 eye;" +	
+	"varying vec3 normal_v;\n" +
+	"varying vec3 eye;\n" +	
 				
-	"void main() " +
-	"{" +
-		 "float l = max(dot(normalize(normal_v), normalize(light_dir)), 0.0);" +
-		 "vec3 color = mat_color;" +
-		 "float lambert = dot(normalize(normal_v),normalize(light_dir));" +
+	"void main() \n" +
+	"{\n" +
+		 "vec3 color = mat_color;\n" +
+		 "float lambert = dot(normalize(normal_v),normalize(light_dir));\n" +
 
-		 "if(lambert > 0.0)" +
-		 "{" +
-		 	"vec3 reflection = reflect(-normalize(light_dir), normalize(normal_v));" +
-		 	"float specular = pow( max(dot(normalize(reflection), normalize(eye)), 0.0), 15.0);" +
-		 	"color += color * lambert + spec_color * specular;" +
-		 "}" +
+		 
+		 "vec3 reflection = reflect(-normalize(light_dir), normalize(normal_v));\n" +
+		 "float specular = pow( max(dot(normalize(reflection), normalize(eye)), 0.0), 15.0);\n" +
+		 "color += color * lambert + spec_color * specular;\n" +
 					
-		 "gl_FragColor = vec4(color, 1.0);" +
-		//"gl_FragColor = vec4(1,0,0,1); " +
+		 "gl_FragColor = vec4(color, 1.0);\n" +
  	"}";
 
 
@@ -234,8 +225,8 @@ function setLoader()
 					//mesh.material = new THREE.MeshLambertMaterial({ color: 0xa65e00 });
 					mesh.geometry.computeVertexNormals();
 					mesh.geometry.computeFaceNormals();	
-					model_mesh = mesh;
-					vertexArray = model_mesh.geometry.vertices;
+					
+					var vertexArray = mesh.geometry.vertices;
 					var idx = 0;
 					//compute pos array
 					for(var i = 0; i < vertexArray.length; i++)
@@ -244,36 +235,46 @@ function setLoader()
 						posArray.push(vertexArray[i].y);
 						posArray.push(vertexArray[i].z);
 						
-						model_mesh.geometry.vertices[i].x == idx;
+						mesh.geometry.vertices[i].x = idx;
 						idx++;
 					}
-
+					posArray = new Float32Array(posArray);
 					mesh.needsUpdate = true;
 					mesh.geometry.needsUpdate = true;
+					model_mesh = mesh;
 					//console.log(mesh.geometry);
 				}
 			});
-
 		}
-		object.position.x = 0;
-		object.position.y = 0;
-		object.position.z = 0;
-		
-		object.scale.set(5,5,5);
+		model_mesh.scale.set(0.2,0.2,0.2);
 
-		
-		posArray = new Float32Array(posArray);
-
-		readMHBBIN("models/ship.mhb.txt", function ( mhb_ )
+		readMHB("models/ship.mhb.txt", function ( mhb_ )
 		{
 			parseMHB(mhb_, function ( mhb_arr )
 			{
 			//	mhb_parse_data = mhb_arr;
-				mhb(mhb_arr);
+			//	mhb(mhb_arr);
+				mhb(mhb_arr, function ( done )
+				{
+					if(done == true)
+					{
+						
+						scene.add(model_mesh);
+					}
+					// add object to scene
+				});
 			});
-			//mhb(mhb_);
+			// mhb(mhb_, function ( done )
+			// 	{
+			// 		if(done == true)
+			// 		{
+						
+			// 			scene.add(model_mesh);
+			// 		}
+			// 		// add object to scene
+			// 	});
 		});
-		scene.add(object);
+		
 	});
 	
 }
@@ -293,16 +294,14 @@ function setControls()
 	controls.noPan = true;
 	controls.staticMoving = true;
 	controls.dynamicDampingFactor = 0.3;
+	controls.target.set(0, 0, 0);
 }
 
 var imht_coeff;
 function animate()
 {
-
 	controls.update();
 	camera.lookAt(scene.position);
-
-
 
 	if(audio_intialized && $("#play").is(":disabled") && $("#stop").is(":enabled"))
 	{
@@ -313,13 +312,13 @@ function animate()
 		shader_vars.light_dir.value = new THREE.Vector3(x, y, z);
 		angle += 0.05;
 	
-
 		var coeffs = getCoefficients(gain,0.2,1.7,50);
 		var coeff_length = Math.pow(2, Math.ceil( Math.log(Math.ceil(Math.sqrt(harmonic_count))) / Math.log(2)));
 		var size_coeff = coeff_length*coeff_length*3;
 
 		var coeff_buff = new Array();
 		initArray(coeff_buff, size_coeff, 0);
+
 		for(var i = 0; i < coeffs.length; i++)
 		{
 			coeff_buff[(3*i)] = coeffs[i];
@@ -334,10 +333,7 @@ function animate()
 		gl.texParameteri( gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST );
 		gl.texParameteri( gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST_MIPMAP_NEAREST );
 		gl.generateMipmap( gl.TEXTURE_2D );
-		gl.bindTexture( gl.TEXTURE_2D, null )  
-
-
-		
+		gl.bindTexture( gl.TEXTURE_2D, null )  		
 	}
 	renderer.render(scene,camera);
 	requestAnimationFrame(animate);
@@ -361,7 +357,6 @@ function parseMHB(mhb_txt, callback)
 		{
 			out_arr.push(columns[j]);
 		}
-
 	}
 	var float32arr = new Float32Array(out_arr);
 	console.log("Parsed MHB Array size: " + float32arr.length);
@@ -422,9 +417,8 @@ function initArray(arr, size, fill)
 
 }
 
-function mhb(mhb_data)
+function mhb(mhb_data, callback)
 {
-	
 	var vert_count = mhb_data.length / harmonic_count;
 
 	var mhb_length = Math.pow(2, Math.ceil( Math.log(Math.ceil(Math.sqrt(mhb_data.length/4))) / Math.log(2)));
@@ -449,18 +443,14 @@ function mhb(mhb_data)
 
 	// MHB -- START
 	var mhb_buff = new Array();
-	//initArray(mhb_buff, size_mhb, 0);
+	initArray(mhb_buff, size_mhb, 0);
 	// RANGE ERROR IN CHROME ;(
 	//Array.apply(null, new Array(size_mhb)).map(Number.prototype.valueOf,0);
 	for(var i = 0; i < size_mhb; i++)
 	{
 		if( i < mhb_data.length)
 		{
-			mhb_buff.push(mhb_data[i]);
-		}
-		else
-		{
-			mhb_buff.push(0.0);
+			mhb_buff[i] = mhb_data[i];
 		}
 	}
 	mhb_data_arr = new Float32Array(mhb_buff);
@@ -512,17 +502,17 @@ function mhb(mhb_data)
 	{
 		for(var j = 0; j < harmonic_count; j++)
 		{
-			reconstructed[(3*i)] += mht_data_arr[(j*3)] * mhb_data[j*vert_count + i];
-			reconstructed[(3*i) + 1] += mht_data_arr[(j*3) + 1] * mhb_data[j*vert_count + i];
-			reconstructed[(3*i) + 2] += mht_data_arr[(j*3) + 2] * mhb_data[j*vert_count + i];
+			reconstructed[(3*i)] += mht_data_arr[(j*3)] * mhb_data[j*vert_count + i];			// x
+			reconstructed[(3*i) + 1] += mht_data_arr[(j*3) + 1] * mhb_data[j*vert_count + i];   // y
+			reconstructed[(3*i) + 2] += mht_data_arr[(j*3) + 2] * mhb_data[j*vert_count + i];   // z
 		}
 	}
 
 	for(var i = 0; i < vert_count; i++)
 	{
-		difference[(3*i)] = posArray[(3*i)] - reconstructed[(3*i)];
-		difference[(3*i) + 1] = posArray[(3*i) + 1] - reconstructed[(3*i) + 1];
-		difference[(3*i) + 2] = posArray[(3*i) + 2] - reconstructed[(3*i) + 2];
+		difference[(3*i)] = posArray[(3*i)] - reconstructed[(3*i)];				// x
+		difference[(3*i) + 1] = posArray[(3*i) + 1] - reconstructed[(3*i) + 1]; // y
+		difference[(3*i) + 2] = posArray[(3*i) + 2] - reconstructed[(3*i) + 2]; // z
 		//console.log("I: " + i);
 	}
 
@@ -539,12 +529,17 @@ function mhb(mhb_data)
 	// DIFF -- END
 	// TODO: Object disappears?
 	setShader(mhb_tex, mht_tex, imht_tex, diff_tex, vert_count, harmonic_count, mhb_length, mht_length, diff_length);
+
+	callback(true);
 }
 
 
 
 function getNewTexture(buffer, size, type, debug_tex)
 {
+	if (!gl.getExtension("OES_texture_float")) {
+		console.log("Requires OES_texture_float extension");
+	}
 	// DEBUG
 	if(debug == true)
 	{
@@ -573,7 +568,7 @@ function getNewTexture(buffer, size, type, debug_tex)
 }
 
 // diffSize / diffTex?
-function setShader(mhb_text, mht_text, imht_text, diff_text, vert_count, harmonic_count, mhb_size, mht_size, diff_size)
+function setShader(mhb_text, mht_text, imht_text, diff_text, vert_count, mhb_size, mht_size, diff_size)
 {
 	shader_vars =
 	{
@@ -582,7 +577,6 @@ function setShader(mhb_text, mht_text, imht_text, diff_text, vert_count, harmoni
 		imht : {type : "t", value : 2, texture : imht_text},
 		diff : {type : "t", value : 3, texture : diff_text},
 		num_vert  : { type : "i", value : vert_count},
-		num_harm  : { type : "i", value : harmonic_count},
 		mhb_size  : { type : "i", value : mhb_size},
 		mht_size  : { type : "i", value : mht_size},
 		diff_size : { type : "i", value : diff_size},

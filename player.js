@@ -42,7 +42,7 @@ function initAudio(callback)
 		analyzer.connect(processor);
 		source.connect(context.destination);
 		freq_data = new Uint8Array(analyzer.frequencyBinCount);
-		loadSound('music/queen.mp3');
+		loadSound('music/test2.mp3');
 
 	//}
 	// catch(e)
