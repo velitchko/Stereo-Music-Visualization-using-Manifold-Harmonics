@@ -62,7 +62,7 @@ function init()
 	//console.log("MHB INFO: " + mhb);
 	canvas = document.getElementById("canvas");
 	renderer = new THREE.WebGLRenderer({ clearAlpha: 1, antialias: true } );
-
+	
 	canvas.appendChild(renderer.domElement);
 	gl = renderer.getContext();
 	gl.clearColor(0.0, 0.52, 0.63, 1.0);
@@ -217,6 +217,7 @@ function setLoader()
 		{
 			object.traverse(function ( mesh )
 			{
+
 				if(mesh instanceof THREE.Mesh)
 				{
 					
@@ -301,6 +302,11 @@ function animate()
 	controls.update();
 	camera.lookAt(scene.position);
 
+	//console.log("audio_init: " + audio_intialized);
+	//console.log("play_disabled: " + $("#play").is(":disabled"));
+	//console.log("stop_enabled: " + $("#stop").is(":enabled"));
+		
+	
 	if(audio_intialized && $("#play").is(":disabled") && $("#stop").is(":enabled"))
 	{
 		var x = Math.sin(angle);
@@ -324,6 +330,10 @@ function animate()
 			coeff_buff[(3*i) + 2] = coeffs[i];
 		}
 		imht_coeff = new Float32Array(coeff_buff);
+		
+		//
+		//gl.bindTexture(gl.TEXTURE_2D, gl.createTexture());
+		
 		gl.bindTexture(gl.TEXTURE_2D, imht_tex.__webglTexture);
 		gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGB, coeff_length, coeff_length, 0, gl.RGB, gl.FLOAT, new Float32Array(coeff_buff));
 		gl.texParameteri( gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE );
@@ -332,6 +342,22 @@ function animate()
 		gl.texParameteri( gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST_MIPMAP_NEAREST );
 		gl.generateMipmap( gl.TEXTURE_2D );
 		gl.bindTexture( gl.TEXTURE_2D, null )  		
+		
+		/*
+		/////TESTCODE/////
+		cubeTexture = gl.createTexture();
+		cubeImage = new Image();
+		cubeImage.src = "test.png";
+		console.log("hitting onload with music");
+		gl.bindTexture(gl.TEXTURE_2D, cubeTexture);
+		gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, cubeImage);
+		gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+		gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR_MIPMAP_NEAREST);
+		gl.generateMipmap(gl.TEXTURE_2D);
+		gl.bindTexture(gl.TEXTURE_2D, null);
+		cubeImage.src = "test.png";
+		//////////
+		*/
 	}
 	renderer.render(scene,camera);
 	requestAnimationFrame(animate);
@@ -535,6 +561,8 @@ function mhb(mhb_data, callback)
 
 function getNewTexture(buffer, size, type, debug_tex)
 {
+	console.log("hitting getNewTextture");
+	
 	if (!gl.getExtension("OES_texture_float")) {
 		console.log("Requires OES_texture_float extension");
 	}
@@ -546,6 +574,7 @@ function getNewTexture(buffer, size, type, debug_tex)
 		console.log("BUFFER(" + buffer.length + "): " + buffer);
 		console.log("TYPE: " + type);
 	}
+	
 	var texture = new THREE.Texture();
 	texture.needsUpdate = false;
 	texture.__webglTexture = gl.createTexture();
@@ -562,7 +591,29 @@ function getNewTexture(buffer, size, type, debug_tex)
 	{
 		console.log("TEXTURE: " + texture);
 	}
+	
+	/*
+	/////TESTCODE/////
+		var cubeTexture = gl.createTexture();
+		var cubeImage = new Image();
+		cubeImage.src = "test.png";
+		
+		cubeImage.src.onload = function() {
+			console.log("onload triggered");
+			gl.bindTexture(gl.TEXTURE_2D, cubeTexture);
+			gl.texImage2D(g1.TEXTURE_2D, 0, g1.RGBA, g1.RGBA, g1.UNSIGNED_BYTE, cubeImage);
+			gl.texParameteri(g1.TEXTURE_2D, g1.TEXTURE_MAG_FILTER, g1.NEAREST);
+			gl.texParameteri(g1.TEXTURE_2D, g1.TEXTURE_MIN_FILTER, g1.NEAREST);
+			gl.bindTexture(g1.TEXTURE_2D, null);
+
+			gl.activeTexture(g1.TEXTURE0);
+			gl.bindTexture(g1.TEXTURE_2D, cubeTexture);
+			gl.uniform1i(gl.getUniformLocation(shader.program, "uSampler"), 0);
+		};
+	//////////
+	*/
 	return texture;
+	//return cubeTexture;
 }
 
 // diffSize / diffTex?
@@ -585,11 +636,29 @@ function setShader(mhb_text, mht_text, imht_text, diff_text, vert_count, mhb_siz
 		spec_color : {type : "v3", value : new THREE.Vector3(0.64, 0.36, 0.0)}
 	};
 
+	/*
 	model_mesh.material = new THREE.ShaderMaterial
 	({
 		uniforms: shader_vars,
 		vertexShader : vertex_shader,
 		fragmentShader : fragment_shader
 	});
+	*/
+	
+	/////TESTCODE/////
+	
+	// geht!
+//	model_mesh.material = new THREE.ShaderMaterial({
+//            uniforms: { color: {type: 'f', value: 0.0} },
+//    });
+	
+	//wird lt. snapshot gebunden, aber wirft andere fehler (attempt to access out of range vertices in attribute 2, ..)
+	model_mesh.material = new THREE.MeshPhongMaterial( {
+			map: THREE.ImageUtils.loadTexture('test.png')
+	});
+	
+
+	//////////
+	
 	//console.log("SHADER FUNC: " + model_mesh.material);
 }
