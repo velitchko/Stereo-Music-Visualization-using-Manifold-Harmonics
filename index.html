@@ -11,6 +11,7 @@
 		<script type="text/javascript" src="init.js"></script>
 		<script type="text/javascript" src="lib/BufferLoader.js"></script>
 		<script type="text/javascript" src="player.js"></script>
+		<script type="text/javascript" src="lib/webgl-debug.js"></script>
 		<link href='http://fonts.googleapis.com/css?family=Open+Sans+Condensed:300' rel='stylesheet' type='text/css'>
 		<link rel="icon" type="image/gif" href="favicon.gif">
 		
@@ -37,7 +38,9 @@
 			<br>
 		</div>
 		
-		<div id="canvas"></div>
+		<div id="canvas">
+			<canvas id="glcanvas" width="1280" height="720"></canvas>
+		</div>
 		<div id="footer">
 			<div id="details">
 				<h1>Details</h1>

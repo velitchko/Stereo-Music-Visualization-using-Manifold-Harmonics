@@ -12,7 +12,7 @@ var gl;
 var ratio = (canvas_w / canvas_h);
 
 // LIGHT
-var ambient;
+var ambientJS;
 var directionalLight;
 var angle = 1.0;
 
@@ -29,6 +29,7 @@ var model_mesh;
 var shader_vars;
 var vertex_shader;
 var fragment_shader;
+var vertex_idx_buff;
 
 // DEBUG VARS
 var debug;
@@ -48,7 +49,30 @@ var mhb_parse_data;
 var harmonic_count;
 var audio_intialized = false;
 
+function throwOnGLError(err, funcName, args) {
+  throw WebGLDebugUtils.glEnumToString(err) + " was caused by call to: " + funcName;
+}
 
+function logGLCall(functionName, args) {   
+   console.log("gl." + functionName + "(" + 
+      WebGLDebugUtils.glFunctionArgsToString(functionName, args) + ")");   
+} 
+
+function validateNoneOfTheArgsAreUndefined(functionName, args) {
+  for (var ii = 0; ii < args.length; ++ii) 
+  {
+    if (args[ii] === undefined) 
+    {
+      console.error("undefined passed to gl." + functionName + "(" +
+                     WebGLDebugUtils.glFunctionArgsToString(functionName, args) + ")");
+    }
+  }
+}
+
+function logAndValidate(functionName, args) {
+   logGLCall(functionName, args);
+   validateNoneOfTheArgsAreUndefined (functionName, args);
+}
 function init()
 {
 	debug = false;
@@ -57,19 +81,29 @@ function init()
 	{
 		audio_intialized = initialized;
 	});
+
+	vertex_idx_buff = new Array();
 	initShaders();
 	posArray = new Array();
-	//console.log("MHB INFO: " + mhb);
-	canvas = document.getElementById("canvas");
-	renderer = new THREE.WebGLRenderer({ clearAlpha: 1, antialias: true } );
+	canvas = document.getElementById("glcanvas");
+	if(debug == true)
+	{
+		gl = WebGLDebugUtils.makeDebugContext(canvas.getContext("webgl"), throwOnGLError, logAndValidate);
+	}
+	else
+	{
+		gl = canvas.getContext("webgl") || canvas.getContext("experimental-webgl");
+	}
 	
-	canvas.appendChild(renderer.domElement);
-	gl = renderer.getContext();
+
+
+	renderer = new THREE.WebGLRenderer({ clearAlpha: 1, antialias: true, canvas: canvas } );
+	
 	gl.clearColor(0.0, 0.52, 0.63, 1.0);
 	scene = new THREE.Scene();
 	camera = new THREE.PerspectiveCamera(20, ratio, 0.1, 10000);
 	setCamera(0,0,1);
-	setLight();
+	//setLight();
 	scene.add(camera);
 		
 	manager = new THREE.LoadingManager();
@@ -103,6 +137,7 @@ function initShaders()
 	"uniform int mht_size; \n" +
 	"uniform int diff_size; \n"+
 
+	"attribute float vertex_idx;" +
 	"varying vec3 normal_v; \n"+
 	"varying vec3 eye; \n"+
 	"const int num_harmonics = 50;\n" +
@@ -126,12 +161,11 @@ function initShaders()
 	"void main() \n"+
 	"{ \n"+
 	 	"vec3 displacement = vec3(0.0, 0.0, 0.0); \n"+
-		
-	 	"float vidx = position.x; \n"+
+	
 		
 	 	"for(int i = 0; i < num_harmonics; i++) \n"+
 	 	"{ \n"+
-	 		"float mhb_idx = float(i) * float(num_vert) + vidx; \n"+
+	 		"float mhb_idx = float(i) * float(num_vert) + vertex_idx; \n"+
 	 		"vec2 mhb_coords = texCoordRGB(float(mhb_size), mhb_idx); \n"+
 	 		"vec4 mhb_texel = texture2D(mhb, mhb_coords).xyzw; \n"+
 			
@@ -162,7 +196,7 @@ function initShaders()
 	 		"displacement = displacement + (coeffs * imht_coord * mhb_vec_val) ; \n"+
 	 	"}\n" +
 		
-		"vec2 diff_coords = texCoord(float(diff_size), vidx); \n"+
+		"vec2 diff_coords = texCoord(float(diff_size), vertex_idx); \n"+
 	  	"vec3 diff_vec = texture2D(diff, diff_coords).xyz; \n"+
 		
 	 	"normal_v = normalMatrix * normal; \n"+
@@ -174,7 +208,6 @@ function initShaders()
 	fragment_shader = 
 	"uniform vec3 ambient; \n" +
 	"uniform vec3 light_dir;\n" +
-	"uniform vec3 color;\n" +
 	"uniform vec3 mat_color;\n" +
 	"uniform vec3 spec_color;\n" +
 
@@ -183,24 +216,25 @@ function initShaders()
 				
 	"void main() \n" +
 	"{\n" +
-		 "vec3 color = mat_color;\n" +
+		 "vec3 colorTMP = mat_color;\n" +
 		 "float lambert = dot(normalize(normal_v),normalize(light_dir));\n" +
 
+		 "vec3 test_amb = ambient;\n" +
 		 
 		 "vec3 reflection = reflect(-normalize(light_dir), normalize(normal_v));\n" +
 		 "float specular = pow( max(dot(normalize(reflection), normalize(eye)), 0.0), 15.0);\n" +
-		 "color += color * lambert + spec_color * specular;\n" +
+		 "colorTMP += colorTMP * lambert + spec_color * specular;\n" +
 					
-		 "gl_FragColor = vec4(color, 1.0);\n" +
+		 "gl_FragColor = vec4(colorTMP, 1.0);\n" +
  	"}";
 }
 
 function setLight()
 {
-	ambient = new THREE.AmbientLight(0xffffff);
+	ambientJS = new THREE.AmbientLight(0xffffff);
 	directionalLight = new THREE.DirectionalLight(0xffffff);
     directionalLight.position.set(1, 1, 1).normalize();
-    scene.add(ambient);
+    scene.add(ambientJS);
     scene.add(directionalLight);
 }
 
@@ -217,7 +251,7 @@ function setLoader()
 		{
 			object.traverse(function ( mesh )
 			{
-
+			
 				if(mesh instanceof THREE.Mesh)
 				{
 					
@@ -226,7 +260,7 @@ function setLoader()
 					mesh.geometry.computeFaceNormals();	
 					
 					var vertexArray = mesh.geometry.vertices;
-					var idx = 0;
+					var idx = 0.0;
 					//compute pos array
 					for(var i = 0; i < vertexArray.length; i++)
 					{
@@ -234,8 +268,8 @@ function setLoader()
 						posArray.push(vertexArray[i].y);
 						posArray.push(vertexArray[i].z);
 						
-						mesh.geometry.vertices[i].x = idx;
-						idx++;
+						vertex_idx_buff[i] = idx;
+						idx = idx + 1.0;
 					}
 					posArray = new Float32Array(posArray);
 					mesh.needsUpdate = true;
@@ -302,10 +336,6 @@ function animate()
 	controls.update();
 	camera.lookAt(scene.position);
 
-	//console.log("audio_init: " + audio_intialized);
-	//console.log("play_disabled: " + $("#play").is(":disabled"));
-	//console.log("stop_enabled: " + $("#stop").is(":enabled"));
-		
 	
 	if(audio_intialized && $("#play").is(":disabled") && $("#stop").is(":enabled"))
 	{
@@ -631,19 +661,26 @@ function setShader(mhb_text, mht_text, imht_text, diff_text, vert_count, mhb_siz
 		diff_size : { type : "i", value : diff_size},
 		ambient    : {type : "v3", value : new THREE.Vector3(1.0, 1.0, 1.0)},
 		light_dir  : {type : "v3", value : new THREE.Vector3(1.0, 0.0, 0.0)},
-		color      : {type : "v3", value : new THREE.Vector3(0.64, 0.36, 0.0)},
 		mat_color  : {type : "v3", value : new THREE.Vector3(0.64, 0.36, 0.0)},
 		spec_color : {type : "v3", value : new THREE.Vector3(0.64, 0.36, 0.0)}
 	};
 
-	/*
+	var attrib =  { vertex_idx : { type : "f", value: [] } };
+		
+	for(var i = 0; i < vertex_idx_buff.length; i++)
+	{
+		attrib.vertex_idx.value.push(vertex_idx_buff[i]);
+		console.log("ATTRIB VIDX: " + attrib.vertex_idx.value);
+	}
+
 	model_mesh.material = new THREE.ShaderMaterial
 	({
 		uniforms: shader_vars,
+		attributes: attrib,
 		vertexShader : vertex_shader,
 		fragmentShader : fragment_shader
 	});
-	*/
+	
 	
 	/////TESTCODE/////
 	
@@ -653,9 +690,9 @@ function setShader(mhb_text, mht_text, imht_text, diff_text, vert_count, mhb_siz
 //    });
 	
 	//wird lt. snapshot gebunden, aber wirft andere fehler (attempt to access out of range vertices in attribute 2, ..)
-	model_mesh.material = new THREE.MeshPhongMaterial( {
-			map: THREE.ImageUtils.loadTexture('test.png')
-	});
+//	model_mesh.material = new THREE.MeshPhongMaterial( {
+//			map: THREE.ImageUtils.loadTexture('test.png')
+//	});
 	
 
 	//////////
