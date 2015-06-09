@@ -1,64 +1,77 @@
 // 720P HD
 var canvas_w = 1280;
 var canvas_h = 720;
-
-// WEBGL
-var canvas;
-var renderer;
-var camera;
-var controls;
-var scene;
-var gl;
 var ratio = (canvas_w / canvas_h);
 
-// LIGHT
-var ambientJS;
-var directionalLight;
-var angle = 1.0;
+// WEBGL STUFF
+var renderer;
+var gl;
+var scene;
+var camera;
+var controls;
+var canvas;
 
-// UTIL
-var loader;
-var manager;
-
-// IMPORTANT VARS
-var gain = 5;
-var posArray;
-var model_mesh;
-
-// SHADER STUFF
-var shader_vars;
-var vertex_shader;
-var fragment_shader;
-var vertex_idx_buff;
-
-// DEBUG VARS
-var debug;
-var mhb_data_arr;
+// ARRAYS
 var mht_data_arr;
 var imht_data_arr;
-var diff_data_arr;
+var mhb_data_arr;
+var mhb_txt_data;
 
-// Textures
+// ARRAY SIZES
+var size_mhb;
+var size_mht;
+var size_imht;
+
+// TEXTURES
 var mhb_tex;
 var mht_tex;
 var imht_tex;
-var diff_tex;
-var mhb_parse_data;
 
-// 
+// TEXTURE SIZES
+var mhb_length;
+var mht_length;
+var imht_length;
+
+
+// MODEL STUFF
 var harmonic_count;
-var audio_intialized = false;
+var num_vert;
+var posArray;
+var model_mesh;
+var vidx_arr;
 
-function throwOnGLError(err, funcName, args) {
+// SHADER STUFF
+var shader_info;
+var vertex_shader;
+var fragment_shader;
+
+// LIGHTS
+var light_angle = 0.0;
+var ambientJS;
+var directionalLight;
+
+var webgl_init = false;
+var model_init = false;
+var audio_init = false;
+var shader_init = false;
+
+var debug;
+var loader;
+
+// DEBUG FUNCTIONS
+function throwOnGLError(err, funcName, args) 
+{
   throw WebGLDebugUtils.glEnumToString(err) + " was caused by call to: " + funcName;
 }
 
-function logGLCall(functionName, args) {   
+function logGLCall(functionName, args) 
+{   
    console.log("gl." + functionName + "(" + 
       WebGLDebugUtils.glFunctionArgsToString(functionName, args) + ")");   
 } 
 
-function validateNoneOfTheArgsAreUndefined(functionName, args) {
+function validateNoneOfTheArgsAreUndefined(functionName, args) 
+{
   for (var ii = 0; ii < args.length; ++ii) 
   {
     if (args[ii] === undefined) 
@@ -69,23 +82,44 @@ function validateNoneOfTheArgsAreUndefined(functionName, args) {
   }
 }
 
-function logAndValidate(functionName, args) {
+function logAndValidate(functionName, args) 
+{
    logGLCall(functionName, args);
    validateNoneOfTheArgsAreUndefined (functionName, args);
 }
-function init()
+
+// INIT FUNCTION
+function init() 
 {
 	debug = false;
 	harmonic_count = 50;
-	initAudio( function ( initialized )
+
+	webgl(function ( init )
 	{
-		audio_intialized = initialized;
+		webgl_init = init;
+		shaders( function ( s_init )
+		{
+			shader_init = s_init;
+		});
+		model( function ( m_init )
+		{
+			model_init = m_init;
+		});
 	});
 
-	vertex_idx_buff = new Array();
-	initShaders();
-	posArray = new Array();
+	audio(function ( a_init)
+	{
+		audio_init = a_init;
+	});
+	animate();
+}
+
+// INITIALIZE WEBGL & SCENE
+function webgl(callback)
+{
 	canvas = document.getElementById("glcanvas");
+	renderer = new THREE.WebGLRenderer({ clearColor: 0x0086a2, antialias: true, clearAlpha: 1, canvas : canvas});
+
 	if(debug == true)
 	{
 		gl = WebGLDebugUtils.makeDebugContext(canvas.getContext("webgl"), throwOnGLError, logAndValidate);
@@ -95,229 +129,125 @@ function init()
 		gl = canvas.getContext("webgl") || canvas.getContext("experimental-webgl");
 	}
 	
-
-
-	renderer = new THREE.WebGLRenderer({ clearAlpha: 1, antialias: true, canvas: canvas } );
-	
-	gl.clearColor(0.0, 0.52, 0.63, 1.0);
 	scene = new THREE.Scene();
-	camera = new THREE.PerspectiveCamera(20, ratio, 0.1, 10000);
-	setCamera(0,0,1);
-	//setLight();
+	camera = new THREE.PerspectiveCamera(20, ratio, 0.1, 10001);
+
 	scene.add(camera);
-		
-	manager = new THREE.LoadingManager();
-	manager.onProgress  = function(item, loaded, total)
-	{
-		console.log("Model loaded:" + item, loaded, total);
-	}
-	loader = new THREE.OBJLoader(manager);
-	setLoader();
+	setCamera(0,0,5);
 	
 	controls = new THREE.TrackballControls(camera, renderer.domElement);
 	setControls();
 
+	setLight();
+	
 	renderer.setSize(canvas_w, canvas_h);
-	console.log('WebGL initialized.')
-	animate();
+	
+	console.log("WebGL Initialized.")
+	callback(true);
 }
 
-function initShaders()
+// SET SHADERS
+function shaders(callback)
 {
-	// TODO: FIND OUT WHY OBJECT DISAPPEARS
-	// SOMETHING TODO WITH THE DISPLACEMENT VECTOR???
-	vertex_shader = 
-	"uniform sampler2D mhb; \n" +
-	"uniform sampler2D mht; \n" +
-	"uniform sampler2D imht; \n" +
-	"uniform sampler2D diff; \n" +
-	"uniform int num_vert; \n" +
-
-	"uniform int mhb_size; \n" +
-	"uniform int mht_size; \n" +
-	"uniform int diff_size; \n"+
-
-	"attribute float vertex_idx;" +
-	"varying vec3 normal_v; \n"+
-	"varying vec3 eye; \n"+
-	"const int num_harmonics = 50;\n" +
-	
-	"vec2 texCoord(float tex_size, float vidx) \n"+
-	"{ \n" +
-		"float x = floor(vidx / tex_size); \n" +
-	 	"float y = mod(vidx, tex_size); \n" +
-	 	"return vec2(y/(tex_size - 1.0), x/(tex_size - 1.0)); \n" +
-	"}\n" +
-    
-	"vec2 texCoordRGB(float tex_size, float vidx) \n"+
-	"{\n"+
-	 	"float tex_idx = floor(vidx / 4.0); \n"+
-	 	"float x = floor(tex_idx / tex_size); \n"+
-	 	"float y = mod(tex_idx , tex_size); \n"+
-	 	"return vec2(y/(tex_size - 1.0), x/(tex_size - 1.0)); \n"+
-	"}\n" +
-	
- 
-	"void main() \n"+
-	"{ \n"+
-	 	"vec3 displacement = vec3(0.0, 0.0, 0.0); \n"+
-	
+	vertex_shader =
+		// UNIFORMS
+		"uniform sampler2D mhb;" +
+		"uniform sampler2D mht;" +
+		"uniform sampler2D imht;" +
+		"uniform float num_vert;" +
+		"uniform float mhb_size;" +
+		"uniform float mht_size;" +
+		// OUT / VARRYING
+		"varying vec3 new_normal;" +
+		"varying vec3 eye;" +
+		// ATTRIBUTES
+		"attribute float vertex_idx;" +
+		"const int num_harmonics = 50;" +
 		
-	 	"for(int i = 0; i < num_harmonics; i++) \n"+
-	 	"{ \n"+
-	 		"float mhb_idx = float(i) * float(num_vert) + vertex_idx; \n"+
-	 		"vec2 mhb_coords = texCoordRGB(float(mhb_size), mhb_idx); \n"+
-	 		"vec4 mhb_texel = texture2D(mhb, mhb_coords).xyzw; \n"+
-			
-	 		"vec2 mht_coords = texCoord(float(mht_size), float(i)); \n"+
-	 		"vec3 coeffs = texture2D(mht, mht_coords).xyz; \n"+
-	 		"vec3 imht_coord = texture2D(imht, mht_coords).xyz; \n"+
-			
-	 		"float mhb_val; \n"+
-	 		"int mhb_coord = int(mod(mhb_idx, 4.0)); \n"+
-			
-	 		"if(mhb_coord == 0) \n"+
-	 		"{\n" +
-	 			"mhb_val = mhb_texel[0]; \n"+
-	 		"} \n"+
-	 		"else if(mhb_coord == 1) \n"+
-	 		"{ \n"+
-	 			"mhb_val = mhb_texel[1]; \n"+
-	 		"} \n"+
-	 		"else if(mhb_coord == 2) \n"+
-	 		"{ \n"+
-	 			"mhb_val = mhb_texel[2]; \n"+
-	 		"} \n"+
-	 		"else if (mhb_coord == 3) \n"+
-	 		"{ \n"+
-	 			"mhb_val = mhb_texel[3]; \n"+
-	 		"} \n"+
-	 		"vec3 mhb_vec_val = vec3(mhb_val, mhb_val, mhb_val); \n"+
-	 		"displacement = displacement + (coeffs * imht_coord * mhb_vec_val) ; \n"+
-	 	"}\n" +
+		// GET COORDINATES OF TEXTURE
+		"vec2 coord(float size_tex, float idx, bool need_tex)" +
+		"{" +
+			"if(need_tex)" +
+			"{" +
+				"idx = floor(idx / 4.0);" +
+			"}"+
+			"float x = floor(idx / size_tex);" +
+			"float y = mod(idx, size_tex);" +
+			"return vec2( (y/size_tex), (x/size_tex) );" +
+		"}" +
+
+		// GET TEXTURE VALUE
+		"float getTex(float val, vec4 tex)" +
+		"{" +
+			"float ret_val;" +
+			"if(val == 0.0) " +
+			"{" +
+				"ret_val = tex.x;" +
+			"}" +
+			"else if(val == 1.0)" +
+			"{" + 
+				"ret_val = tex.y;" +
+			"}" +
+			"else if(val == 2.0)" +
+			"{" + 
+				"ret_val = tex.z;" +
+			"}" +
+			"else if(val == 3.0)" +
+			"{" + 
+				"ret_val = tex.w;" +
+			"}" +
+			"return ret_val;" +
+		"}" +
 		
-		"vec2 diff_coords = texCoord(float(diff_size), vertex_idx); \n"+
-	  	"vec3 diff_vec = texture2D(diff, diff_coords).xyz; \n"+
-		
-	 	"normal_v = normalMatrix * normal; \n"+
-	 
-	 	"eye = -vec3(modelViewMatrix * vec4((displacement + diff_vec), 1.0)); \n"+
-	 	"gl_Position = projectionMatrix * vec4(-eye, 1.0); \n"+
-	"}";
-
-	fragment_shader = 
-	"uniform vec3 ambient; \n" +
-	"uniform vec3 light_dir;\n" +
-	"uniform vec3 mat_color;\n" +
-	"uniform vec3 spec_color;\n" +
-
-	"varying vec3 normal_v;\n" +
-	"varying vec3 eye;\n" +	
-				
-	"void main() \n" +
-	"{\n" +
-		 "vec3 colorTMP = mat_color;\n" +
-		 "float lambert = dot(normalize(normal_v),normalize(light_dir));\n" +
-
-		 "vec3 test_amb = ambient;\n" +
-		 
-		 "vec3 reflection = reflect(-normalize(light_dir), normalize(normal_v));\n" +
-		 "float specular = pow( max(dot(normalize(reflection), normalize(eye)), 0.0), 15.0);\n" +
-		 "colorTMP += colorTMP * lambert + spec_color * specular;\n" +
+		"void main() " +
+		"{" +
+			// OFFSET VECTOR DEPENDING ON FREQUENCIES FROM SONG (MHT/IMHT)
+			"vec3 displacement = vec3(0.0, 0.0, 0.0);" +
 					
-		 "gl_FragColor = vec4(colorTMP, 1.0);\n" +
- 	"}";
-}
+			"for(int i = 0; i < num_harmonics; i++)" +
+			"{" +
+				"float mhb_idx = float(i) * num_vert + vertex_idx;" +
 
-function setLight()
-{
-	ambientJS = new THREE.AmbientLight(0xffffff);
-	directionalLight = new THREE.DirectionalLight(0xffffff);
-    directionalLight.position.set(1, 1, 1).normalize();
-    scene.add(ambientJS);
-    scene.add(directionalLight);
-}
+				"vec2 mhb_coords = coord(mhb_size, mhb_idx, true);" +
+				"vec2 mht_coords = coord(mht_size, float(i), false);" +
 
+				"vec4 mhb_tex = texture2D(mhb, mhb_coords).xyzw;" + 	// RGBA TEXTURE
+				"vec3 mht_tex = texture2D(mht, mht_coords).xyz;" + 		// RGB TEXTURE
+				"vec3 imht_tex = texture2D(imht, mht_coords).xyz;" + 	// RGB TEXTURE
 
-function setLoader()
-{
-	
-	loader.load('models/ship.obj', function ( object )
-	{
-		posArray = new Array();
-		//var material = new THREE.MeshLambertMaterial({ color: 0xa65e00 });
-		//model = object;
-		if(object instanceof THREE.Object3D)
-		{
-			object.traverse(function ( mesh )
-			{
+				"float vec_val = getTex(mod(mhb_idx, 4.0), mhb_tex);" +
+
+				"vec3 offset = vec3(vec_val, vec_val, vec_val);" +
+				"displacement = displacement + (mht_tex * imht_tex * offset);" +
+			"}" +
 			
-				if(mesh instanceof THREE.Mesh)
-				{
-					
-					//mesh.material = new THREE.MeshLambertMaterial({ color: 0xa65e00 });
-					mesh.geometry.computeVertexNormals();
-					mesh.geometry.computeFaceNormals();	
-					
-					var vertexArray = mesh.geometry.vertices;
-					var idx = 0.0;
-					//compute pos array
-					for(var i = 0; i < vertexArray.length; i++)
-					{
-						posArray.push(vertexArray[i].x);
-						posArray.push(vertexArray[i].y);
-						posArray.push(vertexArray[i].z);
-						
-						vertex_idx_buff[i] = idx;
-						idx = idx + 1.0;
-					}
-					posArray = new Float32Array(posArray);
-					mesh.needsUpdate = true;
-					mesh.geometry.needsUpdate = true;
-					model_mesh = mesh;
-					//console.log(mesh.geometry);
-				}
-			});
-		}
-		model_mesh.scale.set(0.2,0.2,0.2);
+			"new_normal = normalMatrix * normal;" +
+			"eye = vec3(modelViewMatrix * vec4((displacement), 1.0));" +
+			"gl_Position = projectionMatrix * vec4(eye, 1.0);" +
+		"}";
 
-		readMHB("models/ship.mhb.txt", function ( mhb_ )
-		{
-			parseMHB(mhb_, function ( mhb_arr )
-			{
-			//	mhb_parse_data = mhb_arr;
-			//	mhb(mhb_arr);
-				mhb(mhb_arr, function ( done )
-				{
-					if(done == true)
-					{
-						
-						scene.add(model_mesh);
-					}
-					// add object to scene
-				});
-			});
-			// mhb(mhb_, function ( done )
-			// 	{
-			// 		if(done == true)
-			// 		{
-						
-			// 			scene.add(model_mesh);
-			// 		}
-			// 		// add object to scene
-			// 	});
-		});
-		
-	});
-	
+	fragment_shader =		
+			// UNIFORMS
+			"uniform vec3 light_dir;" +
+			"uniform vec3 mat_color;" +
+			"uniform vec3 spec_color;" +
+			// INPUT FROM VERTEX SHADER
+			"varying vec3 new_normal;" +
+			"varying vec3 eye;" +	
+			
+			"void main() " +
+			"{" +
+				"vec3 new_color = mat_color;" +
+				"float lambert = dot(normalize(new_normal),normalize(light_dir));" +
+				"vec3 reflection = reflect(-normalize(light_dir), normalize(new_normal));" +
+				"float specular = pow(max(dot(normalize(reflection), normalize(eye)), 0.8), 3.14);" +
+				"new_color += lambert + spec_color * specular;" +
+				"gl_FragColor = vec4(new_color, 1.0);" +
+			"}";
+	callback(true);
 }
 
-function setCamera(x,y,z)
-{
-	camera.position.set(x,y,z);
-}
-
-
+// SET CONTROLS -- MOUSE
 function setControls()
 {
 	controls.rotateSpeed = 5.0;
@@ -327,100 +257,92 @@ function setControls()
 	controls.noPan = true;
 	controls.staticMoving = true;
 	controls.dynamicDampingFactor = 0.3;
-	controls.target.set(0, 0, 0);
 }
 
-var imht_coeff;
-function animate()
+// SET CAMERA POSITION
+function setCamera(x, y, z)
 {
-	controls.update();
-	camera.lookAt(scene.position);
+	camera.position.x = x;
+	camera.position.y = y;
+	camera.position.z = z;
+}
 
-	
-	if(audio_intialized && $("#play").is(":disabled") && $("#stop").is(":enabled"))
+// SET SOME LIGHTS
+function setLight()
+{
+	ambientJS = new THREE.AmbientLight(0xffffff);
+	directionalLight = new THREE.DirectionalLight(0xffffff);
+    directionalLight.position.set(1, 1, 1).normalize();
+    scene.add(ambientJS);
+    scene.add(directionalLight);
+}
+
+// ANIMATE LOOP
+function animate() 
+{
+	controls.update();	
+	// IF AUDIO IS PLAYING GET COEFFICIENTS AND UPDATE TEXTURE
+	// SEND EVERYTHING TO GPU AND UPDATE MODEL
+	if(audio_init && $("#play").is(":disabled") && $("#stop").is(":enabled"))
 	{
-		var x = Math.sin(angle);
-		var y = Math.cos(angle);
-		var z = Math.cos(angle); 
+		// GET COEFFICIENTS FROM AUDIO PROCESSOR
+		var imht_coeff = getFrequencies(0.1,2.0, harmonic_count);
+		var tmp_buff = new Array();
+		initArray(tmp_buff, size_imht, 0.0);
 		
-		shader_vars.light_dir.value = new THREE.Vector3(x, y, z);
-		angle += 0.05;
-	
-		var coeffs = getCoefficients(gain,0.2,1.7,50);
-		var coeff_length = Math.pow(2, Math.ceil( Math.log(Math.ceil(Math.sqrt(harmonic_count))) / Math.log(2)));
-		var size_coeff = coeff_length*coeff_length*3;
-
-		var coeff_buff = new Array();
-		initArray(coeff_buff, size_coeff, 0);
-
-		for(var i = 0; i < coeffs.length; i++)
+		for(var i = 0; i < imht_length; i++)
 		{
-			coeff_buff[(3*i)] = coeffs[i];
-			coeff_buff[(3*i) + 1] = coeffs[i];
-			coeff_buff[(3*i) + 2] = coeffs[i];
+			tmp_buff[3*i] = imht_coeff[i];			// X
+			tmp_buff[(3*i) + 1] = imht_coeff[i];	// Y
+			tmp_buff[(3*i) + 2] = imht_coeff[i];	// Z
 		}
-		imht_coeff = new Float32Array(coeff_buff);
+		imht_data_arr = new Float32Array(tmp_buff);
 		
-		//
-		//gl.bindTexture(gl.TEXTURE_2D, gl.createTexture());
-		
-		gl.bindTexture(gl.TEXTURE_2D, imht_tex.__webglTexture);
-		gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGB, coeff_length, coeff_length, 0, gl.RGB, gl.FLOAT, new Float32Array(coeff_buff));
+		// RESET IMHT TEXTURE WITH NEW VALUES
+		var texture = imht_tex;
+		gl.bindTexture(gl.TEXTURE_2D, texture.__webglTexture);
+		gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGB, imht_length, imht_length, 0, gl.RGB, gl.FLOAT, new Float32Array(tmp_buff));
 		gl.texParameteri( gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE );
 		gl.texParameteri( gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE );
 		gl.texParameteri( gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST );
 		gl.texParameteri( gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST_MIPMAP_NEAREST );
 		gl.generateMipmap( gl.TEXTURE_2D );
-		gl.bindTexture( gl.TEXTURE_2D, null )  		
-		
-		/*
-		/////TESTCODE/////
-		cubeTexture = gl.createTexture();
-		cubeImage = new Image();
-		cubeImage.src = "test.png";
-		console.log("hitting onload with music");
-		gl.bindTexture(gl.TEXTURE_2D, cubeTexture);
-		gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, cubeImage);
-		gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
-		gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR_MIPMAP_NEAREST);
-		gl.generateMipmap(gl.TEXTURE_2D);
-		gl.bindTexture(gl.TEXTURE_2D, null);
-		cubeImage.src = "test.png";
-		//////////
-		*/
-	}
-	renderer.render(scene,camera);
+		gl.bindTexture( gl.TEXTURE_2D, null )  
+	} 
+	// RE-RENDER
+	renderer.render(scene, camera);	
 	requestAnimationFrame(animate);
-
 }
 
+// PARSES THE MHB TEXT FILE INTO FLOAT32ARRAY
 function parseMHB(mhb_txt, callback)
 {
-	var out_arr = new Array();
-	mhb_txt = mhb_txt.replace(/\r\n/g, "\n");
-	mhb_txt = mhb_txt.replace(/\r/g, "\n");
-	mhb_txt = mhb_txt.trim();
-	mhb_txt = mhb_txt.replace(/\s+/g, '|');
-	//alert(mhb_txt);
-	var rows = mhb_txt.split("\n");
+    var out_arr = new Array();
+    mhb_txt = mhb_txt.replace(/\r\n/g, "\n");
+    mhb_txt = mhb_txt.replace(/\r/g, "\n");
+    mhb_txt = mhb_txt.trim();
+    mhb_txt = mhb_txt.replace(/\s+/g, '|');
+    //alert(mhb_txt);
+    var rows = mhb_txt.split("\n");
 
-	for(var i = 0; i < rows.length; i++)
-	{
-		var columns = rows[i].split("|");
-		for(var j = 0; j < columns.length; j++)
-		{
-			out_arr.push(columns[j]);
-		}
-	}
-	var float32arr = new Float32Array(out_arr);
-	console.log("Parsed MHB Array size: " + float32arr.length);
-	callback(float32arr);
+    for(var i = 0; i < rows.length; i++)
+    {
+        var columns = rows[i].split("|");
+        for(var j = 0; j < columns.length; j++)
+        {
+            out_arr.push(columns[j]);
+        }
+    }
+    var mhb_arr = new Float32Array(out_arr);
+    console.log("MHB Data loaded and parsed.")
+    callback(mhb_arr);
 }
 
-function readMHB(mhb, callback)
+// LOADS AND SAVES MHB TEXT FILE DATA
+function readMHB(mhb_txt_data, callback)
 {
  var request = new XMLHttpRequest();
- request.open("GET", mhb, true);
+ request.open("GET", mhb_txt_data, true);
  request.onreadystatechange = function ()
     {
         if(request.readyState === 4)
@@ -428,6 +350,7 @@ function readMHB(mhb, callback)
             if(request.status === 200 || request.status == 0)
             {
                 var allText = request.responseText;
+                
                 //alert(allText);   
                 callback(allText);
             }
@@ -440,27 +363,55 @@ function readMHB(mhb, callback)
     request.send(null);
 }
 
-function readMHBBIN(mhb, callback)
-{
-	var request = new XMLHttpRequest();
-    request.open("GET", mhb, true);
-    request.responseType = "arraybuffer";
-    
-    request.onload = function(o)
-    {
-    	var arr = request.response;
-    	if(arr)
-    	{
-    		arr = new Float32Array(arr);
-    		
-    		callback(arr);
-    	}	
-    }
-    
-    request.send(null);
-    
+// LOADS MODEL 
+// @ https://github.com/mrdoob/three.js/blob/master/utils/converters/obj/convert_obj_three.py
+function model(callback) {
+	
+	var obj_path = "models/ship.js";
+	var mhb_path = "models/ship.mhb.txt";
+
+	loader = new THREE.BinaryLoader();
+	loader.load(obj_path, function ( geometry ) 
+	{
+		if(geometry != null)
+		{
+            model_mesh = new THREE.Mesh(geometry, new THREE.MeshFaceMaterial());
+            model_mesh.geometry.computeVertexNormals();
+			model_mesh.needsUpdate = true;
+			model_mesh.geometry.needsUpdate = true;
+
+			vidx_arr = new Array();
+			// COMPUTE INDEX ARRAY
+			// LABELS VERTICES FROM 0 ---- NUM_VERT-1
+			var idx = 0.0;
+			for(var i = 0; i < model_mesh.geometry.vertices.length; i++)
+			{
+				vidx_arr[i] = idx;
+				idx = idx + 1.0;
+			}
+							
+			
+			readMHB(mhb_path, function ( mhb_ ) 
+			{
+				mhb_txt_data = mhb_;
+				parseMHB(mhb_, function ( mhb_arr )
+				{
+					mhb(mhb_arr);
+					scene.add(model_mesh);
+					console.log("Model Initialized.")
+					callback(true);	
+				});
+			});
+                           
+        }
+        else
+        {
+        	console.log("Model not found");
+        }
+    });
 }
 
+// INITIALIZE ARRAYS
 function initArray(arr, size, fill)
 {
 	for(var i = 0; i < size; i++)
@@ -471,231 +422,155 @@ function initArray(arr, size, fill)
 
 }
 
-function mhb(mhb_data, callback)
+// DO THE MHB PROCESSING
+// COMPUTE MHT AND IMHT
+// SET TEXTURES
+// SEND UNIFORMS + ATTRIBUTES TO SHADER
+function mhb(mhb_data)
 {
-	var vert_count = mhb_data.length / harmonic_count;
-
-	var mhb_length = Math.pow(2, Math.ceil( Math.log(Math.ceil(Math.sqrt(mhb_data.length/4))) / Math.log(2)));
-	var mht_length = Math.pow(2, Math.ceil( Math.log(Math.ceil(Math.sqrt(harmonic_count))) / Math.log(2)));
-	var imht_length = Math.pow(2, Math.ceil( Math.log(Math.ceil(Math.sqrt(harmonic_count))) / Math.log(2)));
-	var diff_length = Math.pow(2, Math.ceil( Math.log(Math.ceil(Math.sqrt(vert_count))) / Math.log(2)));
+	num_vert = mhb_data.length / harmonic_count;
+    
+	mhb_length = nearest_pow2(mhb_data.length / 4);
+    mht_length = nearest_pow2(harmonic_count);
+	imht_length = nearest_pow2(harmonic_count);
+	
+    size_mhb = mhb_length*mhb_length*4;
+    size_mht = mht_length*mht_length*3;
+	size_imht = imht_length*imht_length*3;
+	
 
 	if(debug == true)
 	{
-		console.log("MHB Length: " + mhb_length);
-		console.log("MHT Length: " + mht_length);
-		console.log("IMHT Length:" + imht_length);
-		console.log("DIFF Length:" + diff_length);
-		console.log("Vert count: " + vert_count);	
-	}
-	var size_mhb = mhb_length*mhb_length*4;
-	var size_mht = mht_length*mht_length*3;
-	var size_imht = imht_length*imht_length*3;
-	var size_diff = diff_length*diff_length*3;
-		
+		console.log("MHB LENGTH: " + mhb_length);
+		console.log("MHT LENGTH: " + mht_length);
+		console.log("IMHT LENGTH: " + imht_length);
 	
-
-	// MHB -- START
-	var mhb_buff = new Array();
-	initArray(mhb_buff, size_mhb, 0);
-	// RANGE ERROR IN CHROME ;(
-	//Array.apply(null, new Array(size_mhb)).map(Number.prototype.valueOf,0);
-	for(var i = 0; i < size_mhb; i++)
-	{
-		if( i < mhb_data.length)
-		{
-			mhb_buff[i] = mhb_data[i];
-		}
-	}
-	mhb_data_arr = new Float32Array(mhb_buff);
-	var rgb = gl.RGBA;
-	mhb_tex = getNewTexture(mhb_buff, mhb_length, rgb, "mhb");
+		console.log("MHB TEX SIZE: " + size_mhb);
+		console.log("MHT TEX SIZE: " + size_mht);
+		console.log("IMHT TEX SIZE:" + size_imht);
 	
-	
-	// MHB -- END
-
-	// MHT -- START
-	var mht_buff = new Array();
-	initArray(mht_buff, size_mht, 0);
-	// RANGE ERROR IN CHROME ;(
-	//Array.apply(null, new Array(size_mht)).map(Number.prototype.valueOf,0);
-	for(var i = 0; i < vert_count; ++i)
-	{
-		for(var j = 0; j < harmonic_count; ++j)
-		{
-			mht_buff[(3*j)] += posArray[(i*3)] * mhb_data_arr[j * vert_count + i];
-			mht_buff[(3*j) + 1] += posArray[(i*3) + 1] * mhb_data_arr[j * vert_count + i];
-			mht_buff[(3*j) + 2] += posArray[(i*3) + 2] * mhb_data_arr[j * vert_count + i];
-		}
 	}
-	mht_data_arr = new Float32Array(mht_buff);
-	rgb = gl.RGB;
-	mht_tex = getNewTexture(mht_buff, mht_length, rgb, "mht");
-	// MHT -- END
 
-
-	// Inverse MHT -- START
-	// Will be filled with info from Audio Processor
+    var mhb_buff = new Array();
+    var mht_buff = new Array();
 	var imht_buff = new Array();
-	initArray(imht_buff, size_imht, 1);
-	// RANGE ERROR IN CHROME ;(
-	//Array.apply(null, new Array(size_imht)).map(Number.prototype.valueOf,0);
-	imht_data_arr = new Float32Array(imht_buff);
-	imht_tex = getNewTexture(imht_buff, imht_length, rgb, "imht");
-	
-	// Inverse MHT -- END
 
-	// DIFF -- START
-	var reconstructed = new Array();
-	var difference = new Array();
+    initArray(mhb_buff, size_mhb, 0.0);
+    initArray(mht_buff, size_mht, 0.0);
+	initArray(imht_buff, size_imht, 1.0);
 
-	initArray(reconstructed, vert_count*3, 0);
-	initArray(difference, vert_count*3, 0);
-	
-	for(var i = 0; i < vert_count; i++)
+	// MHT ---- START
+    for(var i = 0; i < size_mhb * 4; ++i)
+    {
+    	if(i < mhb_data.length)
+    	{
+    		mhb_buff[i] = mhb_data[i];
+    	}
+    }
+    mhb_data_arr = new Float32Array(mhb_buff);
+    mhb_tex = getNewTexture(mhb_buff, mhb_length, gl.RGBA, "mhb");
+	// MHT ---- END
+
+	// MHT ---- START
+	for(var i = 0; i < num_vert; i++)
 	{
 		for(var j = 0; j < harmonic_count; j++)
 		{
-			reconstructed[(3*i)] += mht_data_arr[(j*3)] * mhb_data[j*vert_count + i];			// x
-			reconstructed[(3*i) + 1] += mht_data_arr[(j*3) + 1] * mhb_data[j*vert_count + i];   // y
-			reconstructed[(3*i) + 2] += mht_data_arr[(j*3) + 2] * mhb_data[j*vert_count + i];   // z
+			mht_buff[3 * j] += model_mesh.geometry.vertices[i].x * mhb_data_arr[j * num_vert + i];			// x
+			mht_buff[(3 * j) + 1] += model_mesh.geometry.vertices[i].y * mhb_data_arr[j * num_vert + i];	// y
+			mht_buff[(3 * j) + 2] += model_mesh.geometry.vertices[i].z * mhb_data_arr[j * num_vert + i];	// z
 		}
 	}
+	mht_data_arr = new Float32Array(mht_buff);
+	mht_tex = getNewTexture(mht_buff, mht_length, gl.RGB, "mht");
+	// MHT ---- END
 
-	for(var i = 0; i < vert_count; i++)
-	{
-		difference[(3*i)] = posArray[(3*i)] - reconstructed[(3*i)];				// x
-		difference[(3*i) + 1] = posArray[(3*i) + 1] - reconstructed[(3*i) + 1]; // y
-		difference[(3*i) + 2] = posArray[(3*i) + 2] - reconstructed[(3*i) + 2]; // z
-		//console.log("I: " + i);
-	}
+	// IMHT ---- START
+	imht_data_arr = new Float32Array(imht_buff);
+	imht_tex = getNewTexture(imht_buff, imht_length, gl.RGB, "imht");
+	// IMHT ---- END
+	
+	
 
-	//console.log("DIFF LENGTH: " + difference.length);
-
-	for(var i = difference.length; i < size_diff; i++)
-	{
-		//console.log("I:" + i);
-		difference.push(0.0);
-	}
-	diff_data_arr = new Float32Array(difference);
-
-	diff_tex = getNewTexture(difference, diff_length, rgb, "diff");
-	// DIFF -- END
-	// TODO: Object disappears?
-	setShader(mhb_tex, mht_tex, imht_tex, diff_tex, vert_count, harmonic_count, mhb_length, mht_length, diff_length);
-
-	callback(true);
+	// SEND TEXTURES TO SHADER
+	setMaterial();
 }
 
-
-
-function getNewTexture(buffer, size, type, debug_tex)
+// SETS SHADER UNIFORMS AND ATTRIBUTES
+function setMaterial()
 {
-	console.log("hitting getNewTextture");
-	
-	if (!gl.getExtension("OES_texture_float")) {
-		console.log("Requires OES_texture_float extension");
+	shader_info = 
+	{	
+		mhb: {type: "t", value: 0, texture: mhb_tex},
+		mht: {type: "t", value: 1, texture: mht_tex},
+		imht: {type: "t", value: 2, texture: imht_tex},
+		light_dir:  {type: "v3", value: new THREE.Vector3(1.0, 0.0, 0.0)},
+		mat_color: {type: "v3", value: new THREE.Vector3(0.64, 0.36, 0.0)},
+		spec_color: {type: "v3", value: new THREE.Vector3(0.9, 0.7, 0.3)},
+		num_vert: {type: "f", value: num_vert},
+		mhb_size: {type: "f", value: mhb_length},
+		mht_size: {type: "f", value: mht_length}
+	};
+
+	var attributes = { vertex_idx : { type : "f", value: [] } };
+
+	for(var i = 0; i < vidx_arr.length; i++)
+	{
+		attributes.vertex_idx.value.push(vidx_arr[i]);
 	}
-	// DEBUG
+	
+	model_mesh.material = new THREE.ShaderMaterial({
+										uniforms: shader_info,
+										attributes: attributes,
+										vertexShader: vertex_shader,
+										fragmentShader: fragment_shader
+	});
+	console.log("Shaders set.");
+}
+
+// COMPUTES THE NEAREST POWER OF 2
+// NOTE: WEBGL TEXTURES LIKE TO BE A POWER OF 2
+function nearest_pow2( n )
+{
+	 var l = Math.log( n ) / Math.LN2;
+	 return Math.pow( 2, Math.round(  l ) );
+}
+
+// GENERATES AND RETURNS A NEW TEXTURE WITH
+// BUFFER = TEXTURE DATA
+// RGB = GL.RGB | GL.RGBA
+// SIZE = (WIDTH == HEIGHT)
+function getNewTexture(buffer, size, rgb, debug_tex)
+{
+	var float_ext = gl.getExtension("OES_texture_float");
+		
+
+	if(float_ext == null)
+	{
+		console.log("FLOAT TEXTURES NOT SUPPORTED!");
+	}
+	
 	if(debug == true)
 	{
 		console.log("DEBUG: " + debug_tex);
 		console.log("TEXTURE SIZE: " + size);
-		console.log("BUFFER(" + buffer.length + "): " + buffer);
-		console.log("TYPE: " + type);
+		console.log("BUFFER(" + buffer.length + ")"); // + buffer);
+		console.log("TYPE: " + rgb);
 	}
-	
 	var texture = new THREE.Texture();
 	texture.needsUpdate = false;
 	texture.__webglTexture = gl.createTexture();
-	gl.bindTexture(gl.TEXTURE_2D, texture.__webglTexture);
-	gl.texImage2D(gl.TEXTURE_2D, 0, type, size, size, 0, type, gl.FLOAT, new Float32Array(buffer));
+	gl.bindTexture( gl.TEXTURE_2D, texture.__webglTexture );
+	gl.texImage2D(gl.TEXTURE_2D, 0, rgb, size, size, 0, rgb, gl.FLOAT, new Float32Array(buffer));
 	texture.__webglInit = false;
 	gl.texParameteri( gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE );
 	gl.texParameteri( gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE );
 	gl.texParameteri( gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST );
 	gl.texParameteri( gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST_MIPMAP_NEAREST );
 	gl.generateMipmap( gl.TEXTURE_2D );
-	gl.bindTexture( gl.TEXTURE_2D, null );
 	if(debug == true)
 	{
 		console.log("TEXTURE: " + texture);
 	}
-	
-	/*
-	/////TESTCODE/////
-		var cubeTexture = gl.createTexture();
-		var cubeImage = new Image();
-		cubeImage.src = "test.png";
-		
-		cubeImage.src.onload = function() {
-			console.log("onload triggered");
-			gl.bindTexture(gl.TEXTURE_2D, cubeTexture);
-			gl.texImage2D(g1.TEXTURE_2D, 0, g1.RGBA, g1.RGBA, g1.UNSIGNED_BYTE, cubeImage);
-			gl.texParameteri(g1.TEXTURE_2D, g1.TEXTURE_MAG_FILTER, g1.NEAREST);
-			gl.texParameteri(g1.TEXTURE_2D, g1.TEXTURE_MIN_FILTER, g1.NEAREST);
-			gl.bindTexture(g1.TEXTURE_2D, null);
-
-			gl.activeTexture(g1.TEXTURE0);
-			gl.bindTexture(g1.TEXTURE_2D, cubeTexture);
-			gl.uniform1i(gl.getUniformLocation(shader.program, "uSampler"), 0);
-		};
-	//////////
-	*/
 	return texture;
-	//return cubeTexture;
-}
-
-// diffSize / diffTex?
-function setShader(mhb_text, mht_text, imht_text, diff_text, vert_count, mhb_size, mht_size, diff_size)
-{
-	shader_vars =
-	{
-		mhb  : {type : "t", value : 0, texture : mhb_text},
-		mht  : {type : "t", value : 1, texture : mht_text},
-		imht : {type : "t", value : 2, texture : imht_text},
-		diff : {type : "t", value : 3, texture : diff_text},
-		num_vert  : { type : "i", value : vert_count},
-		mhb_size  : { type : "i", value : mhb_size},
-		mht_size  : { type : "i", value : mht_size},
-		diff_size : { type : "i", value : diff_size},
-		ambient    : {type : "v3", value : new THREE.Vector3(1.0, 1.0, 1.0)},
-		light_dir  : {type : "v3", value : new THREE.Vector3(1.0, 0.0, 0.0)},
-		mat_color  : {type : "v3", value : new THREE.Vector3(0.64, 0.36, 0.0)},
-		spec_color : {type : "v3", value : new THREE.Vector3(0.64, 0.36, 0.0)}
-	};
-
-	var attrib =  { vertex_idx : { type : "f", value: [] } };
-		
-	for(var i = 0; i < vertex_idx_buff.length; i++)
-	{
-		attrib.vertex_idx.value.push(vertex_idx_buff[i]);
-		console.log("ATTRIB VIDX: " + attrib.vertex_idx.value);
-	}
-
-	model_mesh.material = new THREE.ShaderMaterial
-	({
-		uniforms: shader_vars,
-		attributes: attrib,
-		vertexShader : vertex_shader,
-		fragmentShader : fragment_shader
-	});
-	
-	
-	/////TESTCODE/////
-	
-	// geht!
-//	model_mesh.material = new THREE.ShaderMaterial({
-//            uniforms: { color: {type: 'f', value: 0.0} },
-//    });
-	
-	//wird lt. snapshot gebunden, aber wirft andere fehler (attempt to access out of range vertices in attribute 2, ..)
-//	model_mesh.material = new THREE.MeshPhongMaterial( {
-//			map: THREE.ImageUtils.loadTexture('test.png')
-//	});
-	
-
-	//////////
-	
-	//console.log("SHADER FUNC: " + model_mesh.material);
 }

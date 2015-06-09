@@ -1,3 +1,4 @@
+// AUDIO STUFF
 var context;
 var analyzer;
 var processor;
@@ -6,19 +7,23 @@ var buffer;
 var bufferLoader;
 var freq = 512;
 var freq_data;
+
+// BOOLEANS -- PLAYBACK
 var playing;
 var pausedAt;
 var paused;
 var startedAt;
 
-
-function initAudio(callback)
+// INIT FUNCTION
+function audio(callback)
 {
+	// Tried with buffer loader.
+	// Buffer loader does not like me.
 	// try
 	// {
 	// 	// Fix up for prefixing
-		window.AudioContext = window.AudioContext || window.webkitAudioContext;
-		context = new AudioContext();
+	window.AudioContext = window.AudioContext || window.webkitAudioContext;
+	context = new AudioContext();
 
 		// bufferLoader = new BufferLoader(context,
 		// [
@@ -29,21 +34,23 @@ function initAudio(callback)
 		// bufferLoader.load();
 
 
+	// INIT PROCESSOR
+	processor = context.createScriptProcessor(2048, 1, 1);
+	processor.connect(context.destination);
+	// INIT ANALYZER
+	analyzer = context.createAnalyser();
+	analyzer.fftSize = freq;
+	// SET UP SOURCE BUFFER
+	source = context.createBufferSource();
+	// CONNECT THEM
+	source.connect(analyzer);
+	analyzer.connect(processor);
+	source.connect(context.destination);
 
-		processor = context.createScriptProcessor(2048, 1, 1);
-		processor.connect(context.destination);
-
-		analyzer = context.createAnalyser();
-		analyzer.fftSize = freq;
-		
-
-		source = context.createBufferSource();
-		source.connect(analyzer);
-		analyzer.connect(processor);
-		source.connect(context.destination);
-		freq_data = new Uint8Array(analyzer.frequencyBinCount);
+	// LOAD SOUND
+	freq_data = new Uint8Array(analyzer.frequencyBinCount);
 		//loadSound('music/test2.mp3');
-		loadSound('music/queen.mp3');
+	loadSound('music/queen.mp3');
 
 	//}
 	// catch(e)
@@ -52,8 +59,10 @@ function initAudio(callback)
 	// 	console.log(e);
 
 	// }
+
 	console.log("Audio initialized.")
 	callback(true);
+	
 }
 
 // load the specified sound
@@ -71,6 +80,7 @@ function loadSound(url) {
 
             $("#play").attr("disabled", false);
             console.log("Song loaded " + url + ".");
+			document.getElementById("play").style.color = '#0086a2';
         }, onError);
     }
     request.send();
@@ -81,6 +91,7 @@ function loadSound(url) {
         console.log(e);
  }
 
+// From Buffer Loader - failed try.
 function finishedLoading(bufferList, callback)
 {
 	source = context.createBufferSource();
@@ -91,33 +102,36 @@ function finishedLoading(bufferList, callback)
 }
 var trans_array;
 
-function getCoefficients(gain, min ,max, l)
+// GET FREQUENCIES FOR IMHT_TEX
+function getFrequencies(min ,max, num_harmonics)
 {
 	var ret, idx;
 	//console.log("Gain:" + gain);
+	// IF PLAYING COMPUTE
 	if(playing)
 	{
 		analyzer.getByteFrequencyData(freq_data);
-		var ratio = l / freq_data.length;
-		
-		trans_array = freq_data;
-		coeffs = new Float32Array(l);
+		var ratio = num_harmonics / freq_data.length;
+
+		frequencies = new Float32Array(num_harmonics);
 		var g;
 
 		for(var i = 0; i < freq_data.length; i++)
 		{
 			idx = Math.round(i*ratio);
-			g = (gain*i*i) / (freq_data.length*freq_data.length);
-			coeffs[idx] += freq_data[i] + freq_data[i]*g
+			g = (i*i) / (freq_data.length*freq_data.length);
+			frequencies[idx] += freq_data[i] + freq_data[i]*g
 		}
-		ret = new Float32Array(coeffs.length);
+		
+		ret = new Float32Array(frequencies.length);
 
-		for(var i = 0; i < coeffs.length; i++)
+		for(var i = 0; i < frequencies.length; i++)
 		{
-			ret[i] = (coeffs[i] * (max - min)) / (255/ratio) + min;
+			ret[i] = (frequencies[i] * (max - min)) / (255/ratio) + min;
 		}
 
 	}
+	// ELSE RETURN 1's
 	else
 	{
 		ret = new Float32Array(l);
@@ -131,12 +145,15 @@ function getCoefficients(gain, min ,max, l)
 	return ret;
 }
 
+
+// PLAY
 function play()
 {
 	$("#play").attr("disabled", true);
 	$("#stop").attr("disabled", false);
 	
-	document.getElementById("play").value="\u23F8";
+	document.getElementById("play").style.color = 'gray';
+	document.getElementById("stop").style.color = '#0086a2';
 	
 	//source.start(0);
 	//source.loop = true;
@@ -155,11 +172,16 @@ function play()
 	}
 }
 
+
+// STOP
 function stop()
 {
 	$("#play").attr("disabled", false);
 	$("#stop").attr("disabled", true);
-	document.getElementById("play").value="\u25B6";
+	
+	document.getElementById("play").style.color = '#0086a2';
+	document.getElementById("stop").style.color = 'gray';
+	
 	source.stop(0);
 	pausedAt = Date.now() - startedAt;
 	playing = false;
